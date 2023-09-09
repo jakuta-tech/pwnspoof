@@ -20,7 +20,7 @@ banner = """\
      /_/    \__,_/_/ /_/_/|_|/____/\___/\___/\__,_/_/  /_/\__/\__, /  
                                             PRESENTS         /____/  
 
-                         -- PWNSpoof v0.3.2 --
+                         -- PWNSpoof v0.4.0 --
   A spoof log generator to practice incident response and threat hunting!
         """
 
@@ -81,7 +81,7 @@ log_generator_settings.add_argument(
 log_generator_settings.add_argument(
     "--server-type",
     type=str,
-    choices=["IIS", "NGINX", "CLF"],
+    choices=["IIS", "NGINX", "CLF", "CLOUDFLARE", "AWS"],
     default="IIS",
     help="Server to spoof (default: %(default)s)",
 )
@@ -120,6 +120,12 @@ attack_settings.add_argument(
     type=str,
     default="RD",
     help="Set the attackers user-agent.  Use RD for random (default: %(default)s)",
+)
+attack_settings.add_argument(
+    "--additional-attacker-ips",
+    type=str,
+    default="",
+    help="Additional attackers ip addresses, comma separated (default: %(default)s). If you wish to exclusively use this list set spoofed-attacks to 0",
 )
 try:
     args = parser.parse_args()
@@ -200,11 +206,29 @@ for x in range(0, args.spoofed_attacks):
         geo=args.attacker_geo,
         app=apps[args.app],
     )
-    # TODOL This should be a child class of Session
+    # TODO: This should be a child class of Session
     attack.attack_payloads = []
     attack.chosen_attack_payloads = []
     sh.add_session(attack)
     attacker_sessions.append(attack)
+
+if args.additional_attacker_ips != "":
+    attacker_ips = args.additional_attacker_ips.split(",")
+    print("Injecting {} additional attack sessions".format(len(attacker_ips)))
+    for ip in attacker_ips:
+        attack_start_date = (random.choice(sh.sessions)).start_datetime
+        attack = Session(
+            attack_start_date,
+            list(apps[args.app].attacks[args.attack_type]()),
+            user_agent=attacker_user_agent,
+            username=random.choice(sh.sessions).username,
+            source_ip=ip,
+            app=apps[args.app],
+        )
+        attack.attack_payloads = []
+        attack.chosen_attack_payloads = []
+        sh.add_session(attack)
+        attacker_sessions.append(attack)
 ## Generate and output
 
 print("Generating the logz and writing them to '{}'".format(args.out))
